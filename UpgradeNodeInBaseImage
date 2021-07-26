@@ -1,0 +1,63 @@
+#Setup to Upgrade Node in your Base centos Image
+#Considering Node is already present/no present in this Base Image
+
+FROM Repo-link-of-your-base-image
+
+ARG noproxy=""
+
+ARG PACAKGE_NAME
+ARG PACKAGE_VERSION
+ARG APP_VERSION
+ARG PACKAGE_REVISION
+ARG PACKAGE_API_VERSION
+ARG GIT_URL
+ARG DOCKER_URL
+ARG SSH_KEY
+
+ENV no_proxy="$noproxy" \
+    NO_PROXY="$noproxy" \
+    MOCHA_REPORTER=mocha-bamboo-reporter \
+    GIT_SSH_COMMAND="ssh -i /root/bitbucket_rsa -oStrictHostKeyChecking=no"
+
+RUN npm config set no-proxy ${noproxy}
+RUN npm config set registry set-your-org-resgistry-or-use-https://registry.npmjs.com/
+
+WORKDIR /home/service
+ADD ./ /home/service
+
+# Authorize SSH Host
+#Sometimes you may expose a Library via bitbucket. You can use below to resolve any npm install issues
+RUN echo ${SSH_KEY} | base64 -d > /root/bitbucket_rsa && \
+    chmod go-rwx /root/bitbucket_rsa && \
+    mkdir /root/.ssh  && \
+    ssh-keyscan -p 4999 git.abc.efg.com >> /root/.ssh/known_hosts && \
+    echo "Host git.abc.efg.com" > /root/.ssh/config  && \
+    echo "IdentityFile /root/bitbucket_rsa" >> /root/.ssh/config ;
+
+RUN yum install -y python \
+    gcc gcc-c++ libgcc libstdc++ \
+    gnupg wget make git g++ kernel-devel \
+    openssl-devel bzip2-devel linux-headers bash \
+    paxctl binutils-gold python3-devel python3 curl && \
+    rm -rf /usr/local/bin/npm /usr/local/share/man/man1/node* /usr/local/lib/dtrace/node.d ~/.npm ~/.node-gyp /opt/local/bin/node /opt/local/include/node /opt/local/lib/node_modules && \
+    rm -rf /usr/local/lib/node* && \
+    rm -rf /usr/local/include/node* && \
+    rm -rf /usr/local/bin/node* && \
+    curl -sL https://rpm.nodesource.com/setup_14.x | bash - && \
+    yum remove -y nodejs npm && \
+    yum list available nodejs && \
+    yum install -y nodejs && \
+    npm install -g node-gyp@5.1.0 && \
+    npm install -g npm@6.14.11 && \
+    python --version && \
+    node --version && \
+    npm --version
+
+# Clear the variables.
+ENV no_proxy="" \
+    NO_PROXY="" \
+    MOCHA_REPORTER=""
+
+LABEL docker_image_json="{\"name\":\"${PACKAGE_NAME}\",\"version\":\"${PACKAGE_VERSION}\",\"app_version\":\"${PACKAGE_VERSION}\",\"source_revision\":\"${PACKAGE_REVISION}\",\"app_config\":{\"config\":{\"path\":\"/${PACKAGE_NAME}/v${PACKAGE_API_VERSION}\"}},\"git_url\":\"${GIT_URL}\",\"url\":\"${DOCKER_URL}\"}"
+
+CMD ["npm","start"]
